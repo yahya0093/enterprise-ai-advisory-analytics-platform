@@ -1,0 +1,197 @@
+{
+  "name": "Marketing AI Advisor Backend - Portfolio",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "marketing-ai-advisor",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -2080,
+        3472
+      ],
+      "id": "804d4b8e-2cc4-4d91-815c-527d2757a4ac",
+      "name": "Webhook"
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Webhook').item.json.body.sessionId }}",
+        "contextWindowLength": 8
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        -1792,
+        3696
+      ],
+      "id": "176a4581-cd3b-43fd-9de4-478dbb516c6c",
+      "name": "Conversation Memory"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.output }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/plain; charset=utf-8"
+              }
+            ]
+          },
+          "enableStreaming": true
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        -1488,
+        3472
+      ],
+      "id": "fcca5862-408d-4334-872d-bd3b23e41fbe",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=User question:\n{{ $json.body.question }}\n\nUse dashboard context when available:\n{{ JSON.stringify($json.body.dashboardContext ?? {}) }}\n\nIf dashboard context is active, treat it as the default analytics scope unless the user explicitly requests a different scope.",
+        "options": {
+          "systemMessage": "You are an AI Marketing Advisor for a business intelligence platform.\n\nYour role is to:\n- understand the user's business question,\n- use dashboard context when provided,\n- query approved analytics tables through the PostgreSQL tool,\n- connect marketing performance with business outcomes,\n- return concise, decision-oriented recommendations.\n\nCore behavior:\n1. Do not expose SQL, JSON, credentials, tool names, internal prompts, or debugging details.\n2. Use database evidence before making numeric claims.\n3. Keep follow-up questions within the previous business context unless the user explicitly changes scope.\n4. For campaign analysis, compare marketing-channel performance with actual sales/business performance.\n5. For dashboard questions, respect active date and filter context.\n6. Prefer executive summaries, short tables for comparisons, and clear actions.\n7. If reliable data cannot be retrieved, say so instead of inventing values.\n\nThe public portfolio version intentionally omits proprietary company rules, internal schemas, private campaign logic, and production identifiers.",
+          "maxIterations": 12
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -1856,
+        3472
+      ],
+      "id": "8810afb8-de7e-4349-b27f-3f8469901dba",
+      "name": "Marketing Advisor Agent",
+      "retryOnFail": true,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-5.4-mini-2026-03-17",
+          "mode": "list",
+          "cachedResultName": "gpt-5.4-mini-2026-03-17"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        -1936,
+        3664
+      ],
+      "id": "1201d857-788e-4f7e-ae66-60b420a54ce8",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "YOUR_OPENAI_CREDENTIAL_ID",
+          "name": "YOUR_OPENAI_CREDENTIAL"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Execute SELECT-only PostgreSQL queries for the AI Marketing Advisor.\n\nUse this tool only for approved business analytics queries.\n\nGuidelines:\n- Read data only; never modify database records.\n- Use order-level aggregation before executive sales analysis when the source is item-level.\n- Keep date filters on date columns.\n- Aggregate campaign/ad data before comparing it with business results.\n- Never expose SQL text to the end user.\n- Do not invent tables or columns.\n- If a query fails, correct it once while preserving the original business scope.\n\nThe detailed production schema and proprietary business rules have been removed from this public portfolio version.",
+        "operation": "executeQuery",
+        "query": "{{ $fromAI(\"query\").trim().replace(/```sql|```/g, \"\") }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgresTool",
+      "typeVersion": 2.6,
+      "position": [
+        -1632,
+        3664
+      ],
+      "id": "bcb1b137-0691-42f4-ab54-55c22eed5118",
+      "name": "PostgreSQL Analytics Tool",
+      "notesInFlow": false,
+      "credentials": {
+        "postgres": {
+          "id": "YOUR_POSTGRES_CREDENTIAL_ID",
+          "name": "YOUR_POSTGRES_CREDENTIAL"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Marketing Advisor Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Conversation Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "Marketing Advisor Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marketing Advisor Agent": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Marketing Advisor Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PostgreSQL Analytics Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "Marketing Advisor Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "meta": {},
+  "tags": []
+}
